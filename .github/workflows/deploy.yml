@@ -39,6 +39,9 @@ jobs:
         working-directory: grass-adventure
         run: npm test
 
+      - name: Test Porcupine Spikey and Panda's Hideout
+        run: node --test porcupine-spikey/tests/game.test.cjs pandas-hideout/tests/game.test.cjs
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -47,6 +50,7 @@ jobs:
           install -Dm644 index.html _site/index.html
           install -Dm644 gobble-gobble-turkey/index.html _site/gobble-gobble-turkey/index.html
           install -Dm644 porcupine-spikey/index.html _site/porcupine-spikey/index.html
+          install -Dm644 -t _site/pandas-hideout pandas-hideout/{index.html,LICENSE}
           install -Dm644 -t _site/grass-adventure grass-adventure/{index.html,engine.js,game.js,style.css,LICENSE}
 
       - name: Upload artifact

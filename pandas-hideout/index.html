@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Help a panda or skunk reach a bamboo hideout in a rainforest platforming adventure.">
+<title>Panda's Hideout</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #102d29;
+    color: #dcf4df;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+  }
+  canvas {
+    border: 3px solid #467c60;
+    border-radius: 6px;
+    display: block;
+    max-width: 100vw;
+    touch-action: none;
+  }
+  #ui { padding: 10px; text-align: center; font-size: 14px; }
+  #ui span { color: #e7db91; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="400" aria-label="Panda's Hideout rainforest platformer"></canvas>
+<div id="ui"><span>SPACE</span>, <span>CLICK</span> or <span>TAP</span> to jump &mdash; Stomp creatures; jump over lasers. <span>ESC</span> for menu.</div>
+<script>
+(function () {
+  "use strict";
+
+  // Movement and collision rules are adapted from Porcupine Spikey.
+  var CANVAS_W = 800, CANVAS_H = 400;
+  var GRAVITY = 0.6, JUMP_FORCE = -11, PLAYER_SPEED = 3;
+  var GROUND_Y = 340, LEVEL_END = 6400;
+  var PLATFORM_SNAP_TOLERANCE = 2, STOMP_DEPTH_THRESHOLD = 16;
+  var BOUNCE_MULTIPLIER = 0.6;
+  var canvas = document.getElementById("gameCanvas");
+  var ctx = canvas.getContext("2d");
+  var keys = {}, pointer = null, jumpRequested = false;
+  var state = "menu", selectedCharacter = "panda", characterCursor = 0;
+  var characterOptions = ["panda", "skunk"];
+  var characterButtons = [
+    { x: 270, y: 155, w: 120, h: 85, label: "Panda", character: "panda" },
+    { x: 410, y: 155, w: 120, h: 85, label: "Skunk", character: "skunk" }
+  ];
+  var startButton = { x: 250, y: 265, w: 300, h: 55 };
+  var backButton = { x: 10, y: 10, w: 90, h: 32 };
+  var fullscreenButton = { x: 754, y: 10, w: 36, h: 32 };
+  var camera = { x: 0 }, score = 0, deathTimer = 0, frameCount = 0;
+  var player = {
+    x: 80, y: GROUND_Y - 36, w: 32, h: 36, vy: 0,
+    onGround: false, alive: true, frame: 0, frameTimer: 0
+  };
+  var platforms = [], enemies = [], projectiles = [], particles = [];
+  var finish = { x: LEVEL_END, y: GROUND_Y - 80, w: 40, h: 80 };
+
+  function resizeCanvas() {
+    var availableHeight = window.innerHeight - document.getElementById("ui").offsetHeight - 6;
+    var scale = Math.min((window.innerWidth - 6) / CANVAS_W, Math.max(1, availableHeight) / CANVAS_H);
+    canvas.style.width = Math.floor(CANVAS_W * scale) + "px";
+    canvas.style.height = Math.floor(CANVAS_H * scale) + "px";
+  }
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+  document.addEventListener("keydown", function (e) {
+    keys[e.code] = true;
+    if (e.code === "Space" || e.code.indexOf("Arrow") === 0) e.preventDefault();
+  });
+  document.addEventListener("keyup", function (e) { keys[e.code] = false; });
+  window.addEventListener("blur", function () { keys = {}; jumpRequested = false; });
+  canvas.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    var r = canvas.getBoundingClientRect();
+    pointer = {
+      x: (e.clientX - r.left) * CANVAS_W / r.width,
+      y: (e.clientY - r.top) * CANVAS_H / r.height
+    };
+  });
+
+  function rect(x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); }
+  function ellipse(x, y, rx, ry, color, angle) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, angle || 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function aabb(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+      a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+  function inside(point, box) {
+    return point.x >= box.x && point.x <= box.x + box.w &&
+      point.y >= box.y && point.y <= box.y + box.h;
+  }
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+  function toggleFullscreen() {
+    if (isFullscreen()) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else {
+      var el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+  }
+
+  function buildRainforest() {
+    platforms.length = 0;
+    var gaps = [1520, 2720, 3840, 3920, 4880, 5920];
+    for (var gx = 0; gx < LEVEL_END + CANVAS_W; gx += 80) {
+      if (gaps.indexOf(gx) === -1) platforms.push({ x: gx, y: GROUND_Y, w: 80, h: 60 });
+    }
+    var branches = [
+      [360, 260], [600, 220], [1040, 260], [1440, 250],
+      [1740, 220], [2050, 180], [2380, 260], [2650, 250],
+      [2890, 220], [3190, 180], [3500, 260], [3770, 250],
+      [3990, 220], [4340, 260], [4640, 180], [4810, 250],
+      [5290, 260], [5640, 220], [5810, 250], [6170, 260]
+    ];
+    for (var i = 0; i < branches.length; i++) {
+      platforms.push({ x: branches[i][0], y: branches[i][1], w: 120, h: 16 });
+    }
+    enemies.length = 0;
+    var defs = [
+      [1000, "beetle"], [1300, "frog"], [1800, "laser"], [2150, "boar"],
+      [2450, "frog"], [2950, "laser"], [3250, "beetle"], [3550, "frog"],
+      [4050, "boar"], [4400, "laser"], [4750, "beetle"], [5050, "frog"],
+      [5350, "boar"], [5700, "laser"], [6000, "beetle"], [6250, "frog"]
+    ];
+    for (var ei = 0; ei < defs.length; ei++) {
+      var type = defs[ei][1];
+      var w = type === "beetle" ? 44 : type === "boar" ? 48 : type === "frog" ? 28 : 32;
+      var h = type === "beetle" ? 44 : type === "boar" ? 48 : type === "frog" ? 34 : 38;
+      enemies.push({
+        x: defs[ei][0], y: GROUND_Y - h, w: w, h: h, type: type,
+        alive: true, vx: 0, activated: type !== "frog", shootTimer: 120
+      });
+    }
+  }
+
+  function startGame() {
+    buildRainforest();
+    player.x = 80; player.y = GROUND_Y - player.h;
+    player.vy = 0; player.onGround = false; player.alive = true;
+    player.frame = 0; player.frameTimer = 0;
+    camera.x = 0; score = 0; deathTimer = 0; frameCount = 0;
+    projectiles.length = 0; particles.length = 0;
+    state = "playing"; keys = {}; jumpRequested = false; pointer = null;
+  }
+  function goToMenu() {
+    state = "menu"; keys = {}; pointer = null; jumpRequested = false;
+  }
+  function die() { state = "dead"; player.alive = false; jumpRequested = false; }
+  function spawnPoof(cx, cy) {
+    for (var i = 0; i < 8; i++) {
+      particles.push({
+        x: cx, y: cy, vx: (Math.random() - 0.5) * 4,
+        vy: (Math.random() - 0.8) * 4, life: 20 + Math.random() * 10
+      });
+    }
+  }
+
+  function update() {
+    frameCount++;
+    var click = pointer;
+    pointer = null;
+    if (click && inside(click, fullscreenButton)) { toggleFullscreen(); return; }
+    if (keys["Escape"] || (state !== "menu" && click && inside(click, backButton))) {
+      goToMenu(); return;
+    }
+    if (state === "menu") {
+      if (keys["ArrowUp"] || keys["KeyW"] || keys["ArrowLeft"] || keys["KeyA"]) {
+        characterCursor = (characterCursor + 1) % characterOptions.length;
+      }
+      if (keys["ArrowDown"] || keys["KeyS"] || keys["ArrowRight"] || keys["KeyD"]) {
+        characterCursor = (characterCursor + 1) % characterOptions.length;
+      }
+      selectedCharacter = characterOptions[characterCursor];
+      if (click) {
+        for (var ci = 0; ci < characterButtons.length; ci++) {
+          if (inside(click, characterButtons[ci])) {
+            characterCursor = ci; selectedCharacter = characterOptions[ci];
+          }
+        }
+      }
+      if (keys["Enter"] || keys["Space"] || (click && inside(click, startButton))) startGame();
+      keys = {};
+      return;
+    }
+    if (state === "dead") {
+      deathTimer++;
+      if (deathTimer > 90 && (keys["Space"] || keys["Enter"] || click)) startGame();
+      return;
+    }
+    if (state === "won") {
+      if (keys["Space"] || keys["Enter"] || click) goToMenu();
+      return;
+    }
+    if (click) jumpRequested = true;
+    player.x += PLAYER_SPEED;
+    if ((keys["Space"] || jumpRequested) && player.onGround) {
+      player.vy = JUMP_FORCE;
+      player.onGround = false;
+    }
+    jumpRequested = false;
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    player.onGround = false;
+    for (var i = 0; i < platforms.length; i++) {
+      var p = platforms[i];
+      if (player.x + player.w > p.x && player.x < p.x + p.w) {
+        if (player.vy >= 0 && player.y + player.h > p.y &&
+            player.y + player.h < p.y + p.h + player.vy + PLATFORM_SNAP_TOLERANCE) {
+          player.y = p.y - player.h;
+          player.vy = 0; player.onGround = true;
+        }
+      }
+    }
+    if (player.y > CANVAS_H + 40) { die(); return; }
+    player.frameTimer++;
+    if (player.frameTimer > 6) { player.frame = (player.frame + 1) % 4; player.frameTimer = 0; }
+
+    for (var ei = 0; ei < enemies.length; ei++) {
+      var e = enemies[ei];
+      if (!e.alive) continue;
+      if (e.type === "frog") {
+        if (!e.activated && e.x - player.x < 400) { e.activated = true; e.vx = -1.5; }
+        if (e.activated) e.x += e.vx;
+      }
+      // Entry-level pace: lasers replace throwers, not additional enemies.
+      if (e.type === "laser" && e.x - camera.x < CANVAS_W && e.x - camera.x > -40) {
+        e.shootTimer--;
+        if (e.shootTimer <= 0) {
+          e.shootTimer = 120;
+          projectiles.push({ x: e.x, y: e.y + 12, vx: -3, vy: 0, life: 240, w: 26, h: 7 });
+        }
+      }
+      if (aabb(player, e)) {
+        if (player.vy > 0 && player.y + player.h - e.y < STOMP_DEPTH_THRESHOLD) {
+          e.alive = false; player.vy = JUMP_FORCE * BOUNCE_MULTIPLIER;
+          score += 100; spawnPoof(e.x + e.w / 2, e.y + e.h / 2);
+        } else { die(); return; }
+      }
+    }
+    for (var pi = projectiles.length - 1; pi >= 0; pi--) {
+      var pr = projectiles[pi];
+      pr.x += pr.vx; pr.life--;
+      if (pr.life <= 0 || pr.x + pr.w < camera.x - 40) { projectiles.splice(pi, 1); continue; }
+      if (aabb(player, pr)) { die(); return; }
+    }
+    for (var qi = particles.length - 1; qi >= 0; qi--) {
+      var q = particles[qi];
+      q.x += q.vx; q.y += q.vy; q.vy += 0.1; q.life--;
+      if (q.life <= 0) particles.splice(qi, 1);
+    }
+    if (aabb(player, finish)) { state = "won"; keys = {}; }
+    camera.x = Math.max(0, player.x - 160);
+  }
+
+  function drawRainforest() {
+    var grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    grad.addColorStop(0, "#244e4a");
+    grad.addColorStop(0.55, "#6a9d80");
+    grad.addColorStop(1, "#163f32");
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Distant mountains, mist, and multiple parallax layers of bamboo.
+    for (var mx = -((camera.x * 0.12) % 380) - 380; mx < CANVAS_W; mx += 380) {
+      ctx.fillStyle = "#416e63";
+      ctx.beginPath(); ctx.moveTo(mx, 290);
+      ctx.quadraticCurveTo(mx + 170, -10, mx + 380, 290); ctx.fill();
+    }
+    for (var layer = 0; layer < 2; layer++) {
+      var spacing = layer === 0 ? 100 : 180;
+      var offset = camera.x * (layer === 0 ? 0.25 : 0.5);
+      for (var bx = -(offset % spacing) - spacing; bx < CANVAS_W + spacing; bx += spacing) {
+        var top = 35 + ((Math.floor((bx + offset) / spacing) * 37) % 90 + 90) % 90;
+        rect(bx, top, 10, GROUND_Y - top, layer === 0 ? "#376f58" : "#39844c");
+        rect(bx + 2, top, 2, GROUND_Y - top, "#75aa68");
+        for (var by = top + 18; by < GROUND_Y; by += 32) {
+          rect(bx - 1, by, 12, 3, "#214e38");
+          ellipse(bx - 12, by - 10, 19, 4, "#28683e", 0.5);
+          ellipse(bx + 23, by - 13, 22, 4, "#3d8550", -0.5);
+        }
+      }
+    }
+    rect(0, 215, CANVAS_W, 22, "rgba(207,235,214,0.12)");
+    rect(0, 249, CANVAS_W, 13, "rgba(207,235,214,0.1)");
+    // Overhead canopy and hanging vines, never collision hazards.
+    for (var tx = -((camera.x * 0.7) % 150) - 150; tx < CANVAS_W + 150; tx += 150) {
+      ellipse(tx + 60, 0, 110, 45, "#163e2b");
+      ellipse(tx + 110, 15, 70, 32, "#215334");
+      ctx.strokeStyle = "#4d8b4e"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(tx + 70, 30);
+      ctx.quadraticCurveTo(tx + 45, 95, tx + 65, 140); ctx.stroke();
+      ellipse(tx + 62, 98, 12, 4, "#67a34e", -0.6);
+    }
+    // A stream below the stepping banks.
+    rect(0, GROUND_Y + 14, CANVAS_W, 46, "#377f84");
+    for (var wx = -((camera.x + frameCount * 0.5) % 90); wx < CANVAS_W; wx += 90) {
+      rect(wx, 367, 34, 2, "#85c7b4");
+      rect(wx + 25, 388, 22, 2, "#69b2ab");
+    }
+  }
+
+  function drawPlatforms() {
+    for (var i = 0; i < platforms.length; i++) {
+      var p = platforms[i], px = p.x - camera.x;
+      if (px + p.w < 0 || px > CANVAS_W) continue;
+      if (p.h > 20) {
+        rect(px, p.y, p.w, p.h, "#573e2c");
+        rect(px, p.y, p.w, 6, "#7dac4f");
+        rect(px, p.y + 6, p.w, 4, "#395b2d");
+        for (var dx = 8; dx < p.w; dx += 20) {
+          rect(px + dx, p.y + 23, 8, 4, "#71553b");
+          ellipse(px + dx, p.y - 2, 6, 3, "#a5c867");
+        }
+      } else {
+        rect(px, p.y, p.w, p.h, "#795338");
+        rect(px, p.y, p.w, 5, "#8ab65b");
+        for (var knot = 12; knot < p.w; knot += 28) {
+          rect(px + knot, p.y + 7, 2, 7, "#b58b53");
+        }
+        ellipse(px + 8, p.y - 7, 12, 4, "#619446", -0.4);
+      }
+    }
+  }
+
+  function drawCharacter(character, px, py, frame) {
+    var lo = [0, 3, 0, -3][frame];
+    if (character === "skunk") {
+      ellipse(px + 1, py + 15, 9, 18, "#202729", -0.45);
+      ellipse(px - 1, py + 12, 4, 13, "#f4f0da", -0.45);
+      ellipse(px + 15, py + 23, 15, 11, "#202729");
+      ellipse(px + 13, py + 16, 13, 4, "#f4f0da");
+      ellipse(px + 27, py + 18, 8, 8, "#202729");
+      ellipse(px + 23, py + 10, 4, 4, "#202729");
+      ellipse(px + 29, py + 15, 2, 2, "#fff");
+      ellipse(px + 29, py + 15, 1, 1, "#111");
+      ellipse(px + 34, py + 21, 2, 2, "#111");
+    } else {
+      ellipse(px + 15, py + 22, 14, 12, "#f4f0da");
+      ellipse(px + 5, py + 21, 5, 10, "#202729");
+      ellipse(px + 24, py + 24, 5, 10, "#202729");
+      ellipse(px + 24, py + 11, 11, 10, "#f9f5e6");
+      ellipse(px + 16, py + 3, 4, 4, "#202729");
+      ellipse(px + 29, py + 2, 4, 4, "#202729");
+      ellipse(px + 21, py + 10, 4, 4, "#202729", -0.4);
+      ellipse(px + 30, py + 10, 3, 4, "#202729", 0.4);
+      ellipse(px + 22, py + 9, 1, 1, "#fff");
+      ellipse(px + 30, py + 9, 1, 1, "#fff");
+      ellipse(px + 28, py + 16, 2, 2, "#202729");
+    }
+    rect(px + 7, py + 30 + lo, 6, 6 - lo, "#202729");
+    rect(px + 23, py + 30 - lo, 6, 6 + lo, "#202729");
+  }
+
+  function drawEnemy(e) {
+    if (!e.alive) return;
+    var x = e.x - camera.x, y = e.y;
+    if (x + e.w < -40 || x > CANVAS_W + 40) return;
+    if (e.type === "laser") {
+      rect(x + 4, y + 8, 24, 30, "#526856");
+      rect(x, y + 28, 32, 10, "#344735");
+      ellipse(x + 16, y + 8, 16, 8, "#79a35e");
+      ellipse(x + 8, y + 15, 7, 6, "#242e2d");
+      ellipse(x + 7, y + 15, 4, 3, e.shootTimer <= 30 ? "#ff575f" : "#efae76");
+      if (e.shootTimer <= 30) {
+        ctx.strokeStyle = "#ff9381"; ctx.lineWidth = 2;
+        ctx.strokeRect(x - 3, y - 3, e.w + 6, e.h + 6);
+        ctx.fillStyle = "#fff0bc"; ctx.font = "bold 18px monospace";
+        ctx.fillText("!", x + 13, y - 10);
+      }
+    } else if (e.type === "frog") {
+      ellipse(x + 14, y + 23, 14, 11, "#94b947");
+      ellipse(x + 8, y + 11, 6, 7, "#aed361");
+      ellipse(x + 21, y + 11, 6, 7, "#aed361");
+      ellipse(x + 7, y + 10, 2, 3, "#202729");
+      ellipse(x + 21, y + 10, 2, 3, "#202729");
+      ellipse(x + 3, y + 30, 7, 4, "#628b3b");
+    } else if (e.type === "beetle") {
+      ellipse(x + 23, y + 24, 21, 19, "#874b55");
+      rect(x + 22, y + 8, 2, 30, "#442f40");
+      ellipse(x + 7, y + 26, 9, 9, "#342f38");
+      ellipse(x + 4, y + 23, 2, 2, "#f9edc6");
+      for (var leg = 8; leg < 40; leg += 12) rect(x + leg, y + 38, 4, 6, "#342f38");
+    } else {
+      ellipse(x + 26, y + 27, 22, 17, "#815b45");
+      ellipse(x + 9, y + 28, 11, 13, "#9c7454");
+      ellipse(x + 6, y + 13, 5, 7, "#654432", -0.3);
+      ellipse(x + 1, y + 33, 6, 5, "#b18c67");
+      ellipse(x + 7, y + 25, 2, 2, "#161e23");
+      rect(x + 12, y + 39, 6, 9, "#49392f");
+      rect(x + 36, y + 39, 6, 9, "#49392f");
+    }
+  }
+
+  function drawFinish() {
+    var x = finish.x - camera.x;
+    if (x < -100 || x > CANVAS_W + 60) return;
+    rect(x - 20, 276, 88, 64, "#b7ae77");
+    rect(x + 8, 295, 30, 45, "#233f32");
+    ctx.fillStyle = "#345f35";
+    ctx.beginPath(); ctx.moveTo(x - 35, 277); ctx.lineTo(x + 24, 233);
+    ctx.lineTo(x + 82, 277); ctx.closePath(); ctx.fill();
+    rect(x - 20, 272, 88, 7, "#72964e");
+    ctx.fillStyle = "#f7edb3"; ctx.font = "12px monospace"; ctx.textAlign = "center";
+    ctx.fillText("HIDEOUT", x + 24, 290); ctx.textAlign = "left";
+    rect(x + 55, 254, 3, 86, "#d9d5a2");
+    rect(x + 58, 254, 28, 18, "#e8d889");
+  }
+  function text(message, y, size, color) {
+    ctx.fillStyle = color || "#e9f2d8";
+    ctx.font = "bold " + size + "px 'Courier New', monospace";
+    ctx.textAlign = "center"; ctx.fillText(message, CANVAS_W / 2, y); ctx.textAlign = "left";
+  }
+  function drawFullscreenButton() {
+    rect(fullscreenButton.x, fullscreenButton.y, fullscreenButton.w, fullscreenButton.h, "#244c3c");
+    ctx.strokeStyle = "#dce5b5"; ctx.lineWidth = 2;
+    ctx.strokeRect(764, 19, 16, 13);
+    rect(769, 16, 6, 19, "#244c3c"); rect(761, 23, 22, 5, "#244c3c");
+  }
+  function drawMenu() {
+    drawRainforest();
+    rect(190, 42, 420, 301, "rgba(12,40,29,0.91)");
+    text("PANDA'S HIDEOUT", 85, 32, "#eddfa0");
+    text("One adventure in the bamboo rainforest", 115, 14);
+    text("Choose your character", 143, 14);
+    for (var ci = 0; ci < characterButtons.length; ci++) {
+      var cb = characterButtons[ci], selected = cb.character === selectedCharacter;
+      rect(cb.x, cb.y, cb.w, cb.h, selected ? "#426f49" : "#244b3c");
+      ctx.strokeStyle = selected ? "#eddfa0" : "#719778"; ctx.lineWidth = 2;
+      ctx.strokeRect(cb.x, cb.y, cb.w, cb.h);
+      drawCharacter(cb.character, cb.x + 44, cb.y + 12, 0);
+      ctx.fillStyle = "#edf1d3"; ctx.font = "bold 16px monospace"; ctx.textAlign = "center";
+      ctx.fillText(cb.label, cb.x + cb.w / 2, cb.y + 72); ctx.textAlign = "left";
+    }
+    rect(startButton.x, startButton.y, startButton.w, startButton.h, "#e4d58a");
+    text("PLAY RAINFOREST", 288, 18, "#214536");
+    text("Level 1 difficulty", 307, 12, "#214536");
+    text("Arrows: choose character / ENTER: play", 365, 14);
+    drawFullscreenButton();
+  }
+  function draw() {
+    if (state === "menu") { drawMenu(); return; }
+    drawRainforest(); drawPlatforms(); drawFinish();
+    for (var ei = 0; ei < enemies.length; ei++) drawEnemy(enemies[ei]);
+    for (var pi = 0; pi < projectiles.length; pi++) {
+      var pr = projectiles[pi], x = pr.x - camera.x;
+      rect(x - 2, pr.y - 2, pr.w + 4, pr.h + 4, "rgba(255,97,97,0.3)");
+      rect(x, pr.y, pr.w, pr.h, "#ff6161");
+      rect(x, pr.y + 2, pr.w, 2, "#ffe6ba");
+    }
+    if (player.alive) drawCharacter(selectedCharacter, player.x - camera.x, player.y, player.frame);
+    for (var qi = 0; qi < particles.length; qi++) {
+      var q = particles[qi]; ctx.globalAlpha = Math.min(q.life / 30, 1);
+      rect(q.x - camera.x, q.y, 4, 4, "#eedd83");
+    }
+    ctx.globalAlpha = 1;
+    rect(10, 10, 90, 32, "#244c3c");
+    ctx.fillStyle = "#e9f2d8"; ctx.font = "14px monospace"; ctx.fillText("< MENU", 22, 31);
+    ctx.fillText("Score: " + score, 115, 31);
+    rect(580, 18, 160, 10, "#244c3c");
+    rect(580, 18, 160 * Math.min(player.x / LEVEL_END, 1), 10, "#e4d58a");
+    drawFullscreenButton();
+    if (state === "dead" || state === "won") {
+      rect(0, 70, CANVAS_W, 230, "rgba(9,30,23,0.88)");
+      text(state === "dead" ? "TRY AGAIN!" : "WELCOME TO THE HIDEOUT!", 162, 28, "#eddfa0");
+      text(state === "dead" ? "Jump over lasers or stomp their sentries." : "Rainforest complete! Score: " + score, 205, 16);
+      text(state === "dead" ? "SPACE, ENTER or TAP to retry" : "SPACE, ENTER or TAP for menu", 248, 16);
+    }
+  }
+
+  // Preserve the original fixed 60 Hz simulation on high-refresh displays.
+  var FRAME_DURATION = 1000 / 60, lastLoopTime = -1, accumulatedTime = 0;
+  function loop(timestamp) {
+    if (lastLoopTime < 0) lastLoopTime = timestamp;
+    var elapsed = timestamp - lastLoopTime;
+    lastLoopTime = timestamp;
+    if (elapsed > 200) elapsed = FRAME_DURATION;
+    accumulatedTime += elapsed;
+    while (accumulatedTime >= FRAME_DURATION) {
+      update(); accumulatedTime -= FRAME_DURATION;
+    }
+    draw(); requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  window._gameState = function () {
+    return {
+      state: state, playerX: player.x, playerY: player.y, playerAlive: player.alive,
+      score: score, currentLevel: 1, selectedCharacter: selectedCharacter
+    };
+  };
+})();
+</script>
+</body>
+</html>
