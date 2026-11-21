@@ -10,10 +10,13 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 function createGame() {
   const canvasEvents = {};
   const documentEvents = {};
+  const drawnText = [];
   const drawing = new Proxy({}, {
     get: (_, name) => name === "createLinearGradient"
       ? () => ({ addColorStop() {} })
-      : () => {}
+      : name === "fillText"
+        ? text => { drawnText.push(text); }
+        : () => {}
   });
   const canvas = {
     style: {},
@@ -50,7 +53,8 @@ function createGame() {
     tap() {
       canvasEvents.pointerdown({ clientX: 400, clientY: 300, preventDefault() {} });
     },
-    instructions
+    instructions,
+    drawnText
   };
 }
 
@@ -102,7 +106,7 @@ test("timed jumps clear every hole, win the race, and reset on replay", () => {
   game.press();
   assert.equal(game.state().jumps, 0);
   game.until(() => game.state().state === "racing");
-  for (const holeX of [500, 740, 980, 1220, 1460, 1700, 1940, 2180, 2420, 2660, 2900, 3140]) {
+  for (const holeX of [500, 940, 1380, 1820, 2260, 2700, 3140]) {
     game.until(() => game.state().playerX >= holeX - 12);
     game.tap();
     game.until(() => game.state().playerY > 0);
@@ -111,7 +115,8 @@ test("timed jumps clear every hole, win the race, and reset on replay", () => {
   }
   game.until(() => game.state().state === "finished");
   assert.equal(game.state().winner, "pig");
-  assert.equal(game.state().jumps, 12);
+  assert.equal(game.state().jumps, 7);
+  assert.ok(game.drawnText.some(text => /Holes avoided: 7\/7$/.test(text)));
   assert.match(game.instructions.innerHTML, /race again/);
   game.press("Enter");
   assert.equal(game.state().state, "countdown");
