@@ -104,3 +104,13 @@ Or serve it with any static file server:
 ```
 npx serve .
 ```
+
+## Automated tests
+
+From the combined games repository root, run:
+
+```sh
+node --test porcupine-spikey/tests/game.test.cjs
+```
+
+Tests exercise all five level selections plus shared platformer regressions for movement, jumping, landing, stomping, projectile collisions, restart, completion, and fixed-timestep timing. The same regression checks also run against Panda's Hideout.
