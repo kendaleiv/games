@@ -187,6 +187,28 @@ test("laser sentries warn before firing slow horizontal beams that can be avoide
   assert.equal(game.state().state, "playing");
 });
 
+test("laser encounters leave recovery space after obstacles and room for the next jump", () => {
+  const game = createGame();
+  game.start();
+  const ground = Array.from(game.world.platforms).filter(p => p.h === 60);
+  const gaps = ground.slice(1).flatMap((p, i) =>
+    p.x > ground[i].x + ground[i].w ? [{ start: ground[i].x + ground[i].w, end: p.x }] : []
+  );
+  for (const sentry of game.world.enemies.filter(e => e.type === "laser")) {
+    const previousGap = gaps.filter(gap => gap.end <= sentry.x).at(-1);
+    assert.ok(sentry.x - previousGap.end >= 250, `Gap recovery before sentry at ${sentry.x}`);
+    const nextGap = gaps.find(gap => gap.start > sentry.x);
+    assert.ok(nextGap.start - (sentry.x + sentry.w) >= 120, `Gap runway after sentry at ${sentry.x}`);
+    for (const enemy of game.world.enemies.filter(e => e.type !== "laser")) {
+      if (enemy.x < sentry.x) {
+        assert.ok(sentry.x - (enemy.x + enemy.w) >= 350, `Enemy recovery before sentry at ${sentry.x}`);
+      } else {
+        assert.ok(enemy.x - (sentry.x + sentry.w) >= 160, `Enemy runway after sentry at ${sentry.x}`);
+      }
+    }
+  }
+});
+
 test("returning to the menu and replaying rebuilds the same single level", () => {
   const game = createGame();
   game.start();
@@ -203,7 +225,7 @@ test("returning to the menu and replaying rebuilds the same single level", () =>
 
 test("both characters can complete the entire level with timed jumps, platforms, and live lasers", () => {
   const jumps = [
-    923, 1472, 1622, 1730, 2072, 2264, 2672, 2741, 2873, 3173,
+    923, 1472, 1622, 1730, 1874, 2072, 2264, 2672, 2741, 2873, 2984, 3173,
     3365, 3791, 3860, 4061, 4220, 4328, 4412, 4673, 4883, 5273,
     5363, 5522, 5630, 5873, 6065, 6242
   ];
