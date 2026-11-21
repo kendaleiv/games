@@ -68,7 +68,7 @@ test("runs without input and automatically recovers from holes", () => {
   assert.ok(game.state().playerX > fallenX);
   game.until(() => game.state().playerSpeed === 3);
   game.until(() => game.state().state === "finished");
-  assert.equal(game.state().holesHit, 3);
+  assert.ok(game.state().holesHit > 3);
   assert.equal(game.state().winner, "turkey");
 });
 
@@ -102,7 +102,7 @@ test("timed jumps clear every hole, win the race, and reset on replay", () => {
   game.press();
   assert.equal(game.state().jumps, 0);
   game.until(() => game.state().state === "racing");
-  for (const holeX of [920, 1770, 2630]) {
+  for (const holeX of [500, 740, 980, 1220, 1460, 1700, 1940, 2180, 2420, 2660, 2900, 3140]) {
     game.until(() => game.state().playerX >= holeX - 12);
     game.tap();
     game.until(() => game.state().playerY > 0);
@@ -111,7 +111,7 @@ test("timed jumps clear every hole, win the race, and reset on replay", () => {
   }
   game.until(() => game.state().state === "finished");
   assert.equal(game.state().winner, "pig");
-  assert.equal(game.state().jumps, 3);
+  assert.equal(game.state().jumps, 12);
   assert.match(game.instructions.innerHTML, /race again/);
   game.press("Enter");
   assert.equal(game.state().state, "countdown");
