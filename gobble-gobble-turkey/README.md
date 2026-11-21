@@ -13,7 +13,7 @@ A browser-based auto-running race! Jump over holes to help a speedy pig beat a s
 5. Tap, click, or press **SPACE** or **ENTER** on the results screen to race again
 6. Use the fullscreen button in the top-right (or press **F**) for a mobile-friendly view
 
-The game has one level and works on desktop and mobile.
+The game has one level with 12 holes to jump over and works on desktop and mobile.
 
 ## Running Locally
 
