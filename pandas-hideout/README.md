@@ -6,7 +6,7 @@ Choose a character with the arrow keys or by clicking/tapping its card, then sel
 
 Reach the bamboo hideout to win. After a short pause on defeat, press **Space**, **Enter**, or tap to retry. **Esc** or the menu button returns to character selection; the top-right button toggles fullscreen.
 
-The level keeps the original first level's 6,400-unit length, movement speed, gravity, jump strength, 20 floating platforms, 16 enemies, and five gaps (four 80-unit gaps and one 160-unit gap). Four slow laser sentries replace the original projectile throwers rather than adding extra enemies. Branches over the stream and a long safe opening keep the challenge introductory.
+The level keeps the original first level's 6,400-unit length, movement speed, gravity, jump strength, 20 floating platforms, 16 enemies, and five gaps (four 80-unit gaps and one 160-unit gap). Four slow laser sentries replace the original projectile throwers rather than adding extra enemies. Sentries sit farther beyond preceding obstacles to give you breathing room before their beams arrive. Branches over the stream and a long safe opening keep the challenge introductory.
 
 Open `index.html` directly, or serve the repository with `python3 -m http.server 8000` and visit `/pandas-hideout/`. No build or dependencies are required.
 
