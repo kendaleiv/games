@@ -16,4 +16,4 @@ Run the tests from the repository root:
 node --test pandas-hideout/tests/game.test.cjs
 ```
 
-Shared tests preserve the Porcupine Spikey movement, collision, restart, completion, and fixed-timestep behavior. Additional tests cover character selection, input methods, the first-level obstacle budget, laser warnings, and an uninterrupted winning route for both characters.
+This game's independent suite covers movement, collision, restart, completion, fixed-timestep behavior, character selection, input methods, the rainforest obstacle budget, laser warnings, and an uninterrupted winning route for both characters. It does not load or compare against another game. Only the browser-simulation harness is shared infrastructure; gameplay expectations belong to this suite.

@@ -113,4 +113,4 @@ From the combined games repository root, run:
 node --test porcupine-spikey/tests/game.test.cjs
 ```
 
-Tests exercise all five level selections plus shared platformer regressions for movement, jumping, landing, stomping, projectile collisions, restart, completion, and fixed-timestep timing. The same regression checks also run against Panda's Hideout.
+This game's independent suite exercises all five level selections plus movement, jumping, landing, stomping, projectile collisions, restart, completion, and fixed-timestep timing. It does not load or compare against another game. Only the browser-simulation harness is shared infrastructure; gameplay expectations belong to this suite.

@@ -21,8 +21,8 @@ node --test pandas-hideout/tests/game.test.cjs
 node --test porcupine-spikey/tests/game.test.cjs
 ```
 
-Porcupine Spikey and Panda's Hideout share platformer regression checks.
+Porcupine Spikey and Panda's Hideout have independent test suites and game-specific expectations. Only the browser-simulation harness in `test/platformer-harness.cjs` is shared infrastructure; neither suite loads or compares against the other game. Keep gameplay regression tests local to each game as they evolve.
 
 ## Publishing
 
-Set **Settings → Pages → Source** to **GitHub Actions**. The [deployment workflow](./.github/workflows/deploy.yml) runs on pushes to `main` or can be started manually from the Actions tab. It runs all four test suites, then stages the menu and the files the games serve into `_site/` and deploys a single Pages artifact. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.
+Set **Settings → Pages → Source** to **GitHub Actions**. The [deployment workflow](./.github/workflows/deploy.yml) runs on pushes to `main` or can be started manually from the Actions tab. Each platformer suite runs in its own independent job, so a failure in one does not prevent the other from running. Deployment requires both to pass, runs the other two games' suites, then stages the menu and the files the games serve into `_site/` and deploys a single Pages artifact. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.

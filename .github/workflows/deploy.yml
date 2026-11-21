@@ -15,7 +15,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test-porcupine-spikey:
+    name: Test Porcupine Spikey
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test
+        working-directory: porcupine-spikey
+        run: node --test tests/game.test.cjs
+
+  test-pandas-hideout:
+    name: Test Panda's Hideout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test
+        working-directory: pandas-hideout
+        run: node --test tests/game.test.cjs
+
   deploy:
+    needs: [test-porcupine-spikey, test-pandas-hideout]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -38,9 +75,6 @@ jobs:
       - name: Test Grass Adventure
         working-directory: grass-adventure
         run: npm test
-
-      - name: Test Porcupine Spikey and Panda's Hideout
-        run: node --test porcupine-spikey/tests/game.test.cjs pandas-hideout/tests/game.test.cjs
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
