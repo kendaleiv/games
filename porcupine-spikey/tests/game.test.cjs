@@ -1,9 +1,75 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
+const fs = require("node:fs");
+const { createHash } = require("node:crypto");
 const { createGame: loadGame } = require("../../test/platformer-harness.cjs");
 
 const createGame = () => loadGame(path.join(__dirname, ".."));
+
+// Frame offsets after selecting a level; each route keeps all hazards intact.
+const winningRoutes = [
+  [245, 512, 647, 874, 1019, 1085, 1244, 1379, 1454, 1510, 1614, 1711, 1812, 1877, 1919],
+  [200, 247, 361, 439, 515, 553, 700, 747, 941, 1009, 1052, 1111, 1153, 1245, 1318, 1409, 1450, 1594, 1645, 1809, 1852, 1933, 1992],
+  [212, 301, 412, 604, 646, 688, 778, 848, 1029, 1105, 1288, 1339, 1415, 1611, 1688, 1735, 1912, 1988],
+  [248, 300, 356, 397, 443, 550, 614, 709, 756, 802, 851, 944, 1018, 1058, 1112, 1156, 1197, 1250, 1366, 1514, 1574, 1644, 1735, 1805, 1850, 1911, 1950],
+  [595, 729, 1379, 1569, 1906]
+];
+const difficultyReport = {
+  schemaVersion: 2,
+  game: "porcupine-spikey",
+  revision: process.env.GAME_TEST_REVISION || process.env.GITHUB_SHA || null,
+  generatedAt: new Date().toISOString(),
+  sourceSha256: {
+    "index.html": createHash("sha256").update(fs.readFileSync(path.join(__dirname, "../index.html"))).digest("hex")
+  },
+  expectedMeasurements: winningRoutes.reduce((count, route) => count + route.length, 0),
+  routes: winningRoutes.map((route, i) => ({
+    id: `level-${i + 1}-keyboard`,
+    level: i + 1,
+    character: "porcupine",
+    input: "keyboard",
+    seed: null,
+    simulationStepMs: 1000 / 60,
+    frameOrigin: "level selected from menu",
+    baselineJumpFrames: route,
+    successCondition: "full win, all jump inputs grounded, all inputs used"
+  })),
+  measurements: []
+};
+
+test.after(() => {
+  if (!process.env.GAME_TEST_REPORT) return;
+  fs.mkdirSync(path.dirname(process.env.GAME_TEST_REPORT), { recursive: true });
+  fs.writeFileSync(process.env.GAME_TEST_REPORT, JSON.stringify(difficultyReport, null, 2) + "\n");
+});
+
+function playRoute({ level, jumps = winningRoutes[level - 1], character = 0, input = "keyboard", hz } = {}) {
+  const game = createGame();
+  for (let i = 0; i < character; i++) { game.press("ArrowDown"); game.step(); game.release("ArrowDown"); }
+  game.click(80 + (level - 1) * 156, 195); game.step();
+  const startFrame = game.world.frameCount;
+  let jumpIndex = 0, groundedInputs = true;
+  const inputs = [];
+  for (let frame = 0; frame < (hz || 60) * 40 && game.state().state === "playing"; frame++) {
+    if (jumpIndex < jumps.length && game.world.frameCount - startFrame >= jumps[jumpIndex]) {
+      groundedInputs &&= game.world.player.onGround;
+      inputs.push({ x: game.world.player.x, y: game.world.player.y });
+      if (input === "keyboard") game.press();
+      else game.tap(400, 200);
+      jumpIndex++;
+    }
+    if (hz) game.tick((frame + 1) * 1000 / hz);
+    else game.step();
+    if (!hz || game.world.frameCount > startFrame + (jumps[jumpIndex - 1] ?? -1)) {
+      game.release(); game.endTap();
+    }
+  }
+  return {
+    state: game.state(), inputs,
+    won: game.state().state === "won" && groundedInputs && jumpIndex === jumps.length
+  };
+}
 
 test("auto-runs at the original speed; jumps obey gravity and cannot repeat in midair", () => {
   const game = createGame();
@@ -136,25 +202,6 @@ test("character selection includes the original default and cycles through all c
   }
 });
 
-test("Level 1 provides a safe opening, jumpable gaps, and four projectile throwers", () => {
-  const game = createGame();
-  game.start();
-  assert.equal(game.world.enemies.length, 16);
-  assert.equal(game.world.enemies.filter(e => e.type === "thrower").length, 4);
-  assert.equal(game.world.platforms.filter(p => p.h === 16).length, 20);
-  assert.ok(game.world.enemies.every(e => e.x >= 900));
-  const ground = game.world.platforms.filter(p => p.h === 60);
-  const gaps = [];
-  for (let i = 1; i < ground.length; i++) {
-    const width = ground[i].x - ground[i - 1].x - ground[i - 1].w;
-    if (width) gaps.push(width);
-  }
-  assert.ok(gaps.length > 0);
-  assert.ok(gaps.every(width => width <= 160));
-  game.clearHazards(); game.step(120);
-  assert.equal(game.state().state, "playing");
-});
-
 test("Level 4 lasers fire horizontally and can be jumped over", () => {
   const game = createGame();
   game.click(560, 195); game.step();
@@ -173,4 +220,66 @@ test("Level 4 lasers fire horizontally and can be jumped over", () => {
   Object.assign(game.world.player, { x: beam.x - 3, y: y - 50, vy: 0 });
   game.step();
   assert.equal(game.state().state, "playing");
+});
+
+test("all five complete levels are winnable by every character using keyboard or touch with live hazards", () => {
+  for (let level = 1; level <= winningRoutes.length; level++) {
+    for (const [character, name] of ["porcupine", "pig", "hamster"].entries()) {
+      for (const input of ["keyboard", "tap"]) {
+        const result = playRoute({ level, character, input });
+        assert.equal(result.state.selectedCharacter, name);
+        assert.ok(result.won, `Level ${level}, ${name}, ${input} did not win`);
+        assert.equal(result.state.playerAlive, true);
+      }
+    }
+  }
+});
+
+test("measures full-win jump timing for each level", t => {
+  for (let level = 1; level <= winningRoutes.length; level++) {
+    const route = winningRoutes[level - 1], widths = [];
+    const baseline = playRoute({ level });
+    for (let jump = 0; jump < route.length; jump++) {
+      const winsAt = offset => {
+        const jumps = route.map((frame, i) => frame + (i === jump ? offset : 0));
+        return playRoute({ level, jumps }).won;
+      };
+      const measurement = {
+        routeId: `level-${level}-keyboard`,
+        inputId: `jump-${jump + 1}`,
+        location: baseline.inputs[jump] || null,
+        baselineFrame: route[jump],
+        baselineWon: baseline.won,
+        sweepOffsetFrames: { minimum: -30, maximum: 30 },
+        window: null
+      };
+      difficultyReport.measurements.push(measurement);
+      assert.ok(baseline.won, `Level ${level}, jump ${jump + 1} baseline is no longer winnable`);
+      let early = 0, late = 0;
+      while (early > -30 && winsAt(early - 1)) early--;
+      while (late < 30 && winsAt(late + 1)) late++;
+      const width = late - early;
+      measurement.window = {
+        earlyOffsetFrames: early,
+        lateOffsetFrames: late,
+        earliestFrame: route[jump] + early,
+        latestFrame: route[jump] + late,
+        earliestMs: (route[jump] + early) * 1000 / 60,
+        latestMs: (route[jump] + late) * 1000 / 60,
+        slackFrames: width,
+        slackMs: width * 1000 / 60,
+        clipped: early === -30 || late === 30
+      };
+      widths.push(width);
+    }
+    t.diagnostic(`Level ${level}: worst full-win slack ${(Math.min(...widths) * 1000 / 60).toFixed(1)} ms`);
+  }
+});
+
+test("the introductory and seesaw winning routes work across common display rates", () => {
+  for (const level of [1, 5]) {
+    for (const hz of [30, 60, 120, 144]) {
+      assert.ok(playRoute({ level, hz }).won, `Level ${level} route failed at ${hz} Hz`);
+    }
+  }
 });

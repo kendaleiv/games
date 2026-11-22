@@ -37,6 +37,8 @@ Run the gameplay tests with Node.js (no dependencies required):
 node --test tests/game.test.cjs
 ```
 
+The suite checks controls, hole recovery, wins, replay, and display rates. Per-hole timing measurements are informational, without fixed slack targets. See [test coverage and reports](../README.md#playability-and-difficulty-coverage).
+
 ## License
 
 [MIT](LICENSE)

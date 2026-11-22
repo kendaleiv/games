@@ -113,4 +113,8 @@ From the combined games repository root, run:
 node --test porcupine-spikey/tests/game.test.cjs
 ```
 
-This game's independent suite exercises all five level selections plus movement, jumping, landing, stomping, projectile collisions, restart, completion, and fixed-timestep timing. It does not load or compare against another game. Only the browser-simulation harness is shared infrastructure; gameplay expectations belong to this suite.
+The suite checks core behavior and full keyboard/touch wins on all five levels for every character with hazards intact. Timing measurements are informational, not fixed difficulty targets. See [test coverage and reports](../README.md#playability-and-difficulty-coverage).
+
+Known limitation: Level 5's mosquito/fox activation and chipmunk shooting are nested in other enemy branches and do not run. Current win checks therefore do not exercise those intended behaviors.
+
+It does not load or compare against another game. Only the browser-simulation harness is shared infrastructure; gameplay expectations belong to this suite.

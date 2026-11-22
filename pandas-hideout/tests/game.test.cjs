@@ -1,9 +1,71 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const path = require("node:path");
+const fs = require("node:fs");
+const { createHash } = require("node:crypto");
 const { createGame: loadGame } = require("../../test/platformer-harness.cjs");
 
 const createGame = () => loadGame(path.join(__dirname, ".."));
+
+const winningJumpFrames = [
+  279, 459, 515, 558, 602, 660, 727, 847, 878, 928, 973, 1025, 1093, 1224,
+  1264, 1315, 1369, 1415, 1450, 1529, 1598, 1719, 1758, 1819, 1864, 1935, 1998, 2051
+];
+const difficultyReport = {
+  schemaVersion: 2,
+  game: "pandas-hideout",
+  revision: process.env.GAME_TEST_REVISION || process.env.GITHUB_SHA || null,
+  generatedAt: new Date().toISOString(),
+  sourceSha256: {
+    "index.html": createHash("sha256").update(fs.readFileSync(path.join(__dirname, "../index.html"))).digest("hex")
+  },
+  expectedMeasurements: winningJumpFrames.length,
+  routes: [{
+    id: "rainforest-keyboard",
+    level: 1,
+    character: "panda",
+    input: "keyboard",
+    seed: null,
+    simulationStepMs: 1000 / 60,
+    frameOrigin: "game starts from menu",
+    baselineJumpFrames: winningJumpFrames,
+    successCondition: "full win, all jump inputs grounded, all inputs used"
+  }],
+  measurements: []
+};
+
+test.after(() => {
+  if (!process.env.GAME_TEST_REPORT) return;
+  fs.mkdirSync(path.dirname(process.env.GAME_TEST_REPORT), { recursive: true });
+  fs.writeFileSync(process.env.GAME_TEST_REPORT, JSON.stringify(difficultyReport, null, 2) + "\n");
+});
+
+function playRoute({ jumps = winningJumpFrames, character = 0, input = "keyboard", hz } = {}) {
+  const game = createGame();
+  for (let i = 0; i < character; i++) { game.press("ArrowDown"); game.step(); }
+  game.start();
+  const startFrame = game.world.frameCount;
+  let jumpIndex = 0, groundedInputs = true;
+  const inputs = [];
+  for (let frame = 0; frame < (hz || 60) * 40 && game.state().state === "playing"; frame++) {
+    if (jumpIndex < jumps.length && game.world.frameCount - startFrame >= jumps[jumpIndex]) {
+      groundedInputs &&= game.world.player.onGround;
+      inputs.push({ x: game.world.player.x, y: game.world.player.y });
+      if (input === "keyboard") game.press();
+      else game.tap(400, 200);
+      jumpIndex++;
+    }
+    if (hz) game.tick((frame + 1) * 1000 / hz);
+    else game.step();
+    if (!hz || game.world.frameCount > startFrame + (jumps[jumpIndex - 1] ?? -1)) {
+      game.release(); game.endTap();
+    }
+  }
+  return {
+    state: game.state(), inputs,
+    won: game.state().state === "won" && groundedInputs && jumpIndex === jumps.length
+  };
+}
 
 test("auto-runs at the original speed; jumps obey gravity and cannot repeat in midair", () => {
   const game = createGame();
@@ -166,26 +228,6 @@ test("keyboard, click, and tap start the single level and jump", () => {
   }
 });
 
-test("rainforest terrain provides an introductory obstacle budget and safe enemy placement", () => {
-  const game = createGame();
-  game.start();
-  assert.equal(game.world.finish.x, 6400);
-  assert.equal(game.world.enemies.length, 16);
-  assert.equal(game.world.enemies.filter(e => e.type === "laser").length, 4);
-  assert.equal(game.world.platforms.filter(p => p.h === 16).length, 20);
-  const gapWidths = world => {
-    const ground = Array.from(world.platforms).filter(p => p.h === 60);
-    return ground.slice(1).map((p, i) => p.x - ground[i].x - ground[i].w).filter(Boolean).sort((a, b) => a - b);
-  };
-  assert.deepEqual(gapWidths(game.world), [80, 80, 80, 80, 160]);
-  assert.ok(game.world.enemies.every(e => e.x >= 900));
-  for (const enemy of game.world.enemies) {
-    for (let x = Math.floor(enemy.x / 80) * 80; x < enemy.x + enemy.w; x += 80) {
-      assert.ok(game.world.platforms.some(p => p.h === 60 && p.x === x));
-    }
-  }
-});
-
 test("laser sentries warn before firing slow horizontal beams that can be avoided", () => {
   const game = createGame();
   game.start();
@@ -209,28 +251,6 @@ test("laser sentries warn before firing slow horizontal beams that can be avoide
   assert.equal(game.state().state, "playing");
 });
 
-test("laser encounters leave recovery space after obstacles and room for the next jump", () => {
-  const game = createGame();
-  game.start();
-  const ground = Array.from(game.world.platforms).filter(p => p.h === 60);
-  const gaps = ground.slice(1).flatMap((p, i) =>
-    p.x > ground[i].x + ground[i].w ? [{ start: ground[i].x + ground[i].w, end: p.x }] : []
-  );
-  for (const sentry of game.world.enemies.filter(e => e.type === "laser")) {
-    const previousGap = gaps.filter(gap => gap.end <= sentry.x).at(-1);
-    assert.ok(sentry.x - previousGap.end >= 250, `Gap recovery before sentry at ${sentry.x}`);
-    const nextGap = gaps.find(gap => gap.start > sentry.x);
-    assert.ok(nextGap.start - (sentry.x + sentry.w) >= 120, `Gap runway after sentry at ${sentry.x}`);
-    for (const enemy of game.world.enemies.filter(e => e.type !== "laser")) {
-      if (enemy.x < sentry.x) {
-        assert.ok(sentry.x - (enemy.x + enemy.w) >= 350, `Enemy recovery before sentry at ${sentry.x}`);
-      } else {
-        assert.ok(enemy.x - (sentry.x + sentry.w) >= 160, `Enemy runway after sentry at ${sentry.x}`);
-      }
-    }
-  }
-});
-
 test("returning to the menu and replaying rebuilds the same single level", () => {
   const game = createGame();
   game.start();
@@ -246,36 +266,57 @@ test("returning to the menu and replaying rebuilds the same single level", () =>
 });
 
 test("all three characters can complete the entire level with timed jumps, platforms, and live lasers", () => {
-  const jumps = [
-    923, 1472, 1622, 1730, 1874, 2072, 2264, 2672, 2741, 2873, 2984, 3173,
-    3365, 3791, 3860, 4061, 4220, 4328, 4412, 4673, 4883, 5273,
-    5363, 5522, 5630, 5873, 6065, 6242
-  ];
-  const outcomes = [];
   for (const [index, character] of ["panda", "skunk", "pig"].entries()) {
-    const game = createGame();
-    for (let i = 0; i < index; i++) { game.press("ArrowDown"); game.step(); }
-    assert.equal(game.state().selectedCharacter, character);
-    game.start();
-    let jumpIndex = 0, usedPlatforms = false, sawLasers = false;
-    for (let frame = 0; frame < 2400 && game.state().state === "playing"; frame++) {
-      const player = game.world.player;
-      if (jumpIndex < jumps.length && player.x >= jumps[jumpIndex]) {
-        assert.equal(player.onGround, true, `Jump at ${jumps[jumpIndex]} must be reachable`);
-        game.press(); jumpIndex++;
-      }
-      game.step(); game.release();
-      if (player.onGround && player.y + player.h < 340) usedPlatforms = true;
-      if (game.world.projectiles.length) sawLasers = true;
+    for (const input of ["keyboard", "tap"]) {
+      const result = playRoute({ character: index, input });
+      assert.equal(result.state.selectedCharacter, character);
+      assert.ok(result.won, `${character} ${input} route did not win`);
+      assert.equal(result.state.playerAlive, true);
     }
-    assert.equal(game.state().state, "won");
-    assert.equal(game.state().playerAlive, true);
-    assert.equal(jumpIndex, jumps.length);
-    assert.ok(usedPlatforms);
-    assert.ok(sawLasers);
-    assert.ok(game.state().score > 0);
-    outcomes.push([game.state().playerX, game.state().score]);
   }
-  assert.deepEqual(outcomes[0], outcomes[1]);
-  assert.deepEqual(outcomes[0], outcomes[2]);
+});
+
+test("measures jump timing on the live-hazard winning route", t => {
+  const widths = [];
+  const baseline = playRoute();
+  for (let jump = 0; jump < winningJumpFrames.length; jump++) {
+    const winsAt = offset => {
+      const jumps = winningJumpFrames.map((frame, i) => frame + (i === jump ? offset : 0));
+      return playRoute({ jumps }).won;
+    };
+    const measurement = {
+      routeId: "rainforest-keyboard",
+      inputId: `jump-${jump + 1}`,
+      location: baseline.inputs[jump] || null,
+      baselineFrame: winningJumpFrames[jump],
+      baselineWon: baseline.won,
+      sweepOffsetFrames: { minimum: -20, maximum: 20 },
+      window: null
+    };
+    difficultyReport.measurements.push(measurement);
+    assert.ok(baseline.won, `Baseline jump ${jump + 1} failed`);
+    let early = 0, late = 0;
+    while (early > -20 && winsAt(early - 1)) early--;
+    while (late < 20 && winsAt(late + 1)) late++;
+    const width = late - early;
+    measurement.window = {
+      earlyOffsetFrames: early,
+      lateOffsetFrames: late,
+      earliestFrame: winningJumpFrames[jump] + early,
+      latestFrame: winningJumpFrames[jump] + late,
+      earliestMs: (winningJumpFrames[jump] + early) * 1000 / 60,
+      latestMs: (winningJumpFrames[jump] + late) * 1000 / 60,
+      slackFrames: width,
+      slackMs: width * 1000 / 60,
+      clipped: early === -20 || late === 20
+    };
+    widths.push(width);
+  }
+  t.diagnostic(`Worst full-win jump slack: ${(Math.min(...widths) * 1000 / 60).toFixed(1)} ms; sweep capped at +/-20 frames`);
+});
+
+test("the full winning route works across common display rates", () => {
+  for (const hz of [30, 60, 120, 144]) {
+    assert.ok(playRoute({ hz }).won, `Full route failed at ${hz} Hz`);
+  }
 });

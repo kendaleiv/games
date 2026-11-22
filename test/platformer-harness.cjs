@@ -57,6 +57,9 @@ function createGame(directory) {
       if (canvasEvents.pointerdown) this.click(x, y);
       else canvasEvents.touchstart({ touches: [{ clientX: x, clientY: y }], preventDefault() {} });
     },
+    endTap() {
+      if (canvasEvents.touchend) canvasEvents.touchend({ touches: [], preventDefault() {} });
+    },
     start() { this.press("Enter"); this.step(); },
     clearHazards() { window.testWorld.enemies.length = 0; window.testWorld.projectiles.length = 0; },
     until(predicate, limit = 2500) {

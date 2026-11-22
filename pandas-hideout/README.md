@@ -16,4 +16,6 @@ Run the tests from the repository root:
 node --test pandas-hideout/tests/game.test.cjs
 ```
 
-This game's independent suite covers movement, collision, restart, completion, fixed-timestep behavior, character selection, input methods, the rainforest obstacle budget, laser warnings, and an uninterrupted winning route for all three characters. It does not load or compare against another game. Only the browser-simulation harness is shared infrastructure; gameplay expectations belong to this suite.
+The suite checks core behavior and full keyboard/touch wins for all characters with hazards intact. Timing measurements are informational; obstacle counts, scores, and difficulty are not locked to a fixed baseline. See [test coverage and reports](../README.md#playability-and-difficulty-coverage).
+
+It does not load or compare against another game. Only the browser-simulation harness is shared infrastructure; gameplay expectations belong to this suite.
