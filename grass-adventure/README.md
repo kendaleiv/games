@@ -39,6 +39,8 @@ npm test
 
 Uses Node's built-in test runner (Node 18+), without external packages. Tests cover progression through all six dungeons, map reachability, keys, combat, twenty-hit victory, shields, jumping, ice, swimming, shops, arcade prizes, secrets, retry, and validated save data. Browser play should also be checked at mobile, tablet, and desktop sizes.
 
+An input-driven playthrough completes all six dungeons with live enemies, earned equipment, and ordinary combat cooldowns. Duration, actual damage, and lightning-response timing are informational, without fixed difficulty budgets. See [test coverage and reports](../README.md#playability-and-difficulty-coverage).
+
 ## Deployment
 
 Like [Porcupine Spikey](https://github.com/kendaleiv/porcupine-spikey), `.github/workflows/deploy.yml` publishes the repository directly to GitHub Pages on pushes to `main` or manual dispatch. Set **Settings → Pages → Source** to **GitHub Actions**. No build step or hosting service is required.

@@ -23,6 +23,23 @@ node --test porcupine-spikey/tests/game.test.cjs
 
 Porcupine Spikey and Panda's Hideout have independent test suites and game-specific expectations. Only the browser-simulation harness in `test/platformer-harness.cjs` is shared infrastructure; neither suite loads or compares against the other game. Keep gameplay regression tests local to each game as they evolve.
 
+## Playability and difficulty coverage
+
+Tests cover full input-driven wins with hazards intact, controls, collisions, progression, saves, retries, and display-rate behavior. They do not enforce fixed obstacle counts, identical end scores, or difficulty budgets. Winning scripts are test fixtures, not required player strategies; update them when intentionally changing a level.
+
+Timing slack is **informational**, not a pass/fail difficulty target. Route sweeps vary one input at a time and record the contiguous successful range around its baseline; the isolated lightning test records its longest successful range. Slack is the time between the earliest and latest successful inputs, so a single successful frame has zero slack. Bounded sweeps can report lower bounds. These simulations do not replace human/device playtesting or establish subjective difficulty.
+
+CI uploads lightweight JSON artifacts named `difficulty-porcupine-spikey`, `difficulty-pandas-hideout`, and `difficulty-race-and-adventure`. Reports include revision/source hashes, route metadata, input locations, frames, milliseconds, and slack. Grass Adventure also reports duration and actual damage separately from healing. Reports are uploaded after test failures where possible; missing records or `null` windows indicate incomplete measurement. They are not committed or published with the games.
+
+To generate a local report:
+
+```sh
+export GAME_TEST_REVISION="$(git rev-parse HEAD)"
+GAME_TEST_REPORT="$PWD/.test-results/pandas-hideout.json" node --test pandas-hideout/tests/game.test.cjs
+```
+
+Use the corresponding game/test path for another suite. Without `GAME_TEST_REPORT`, tests do not write files. CI uses `GITHUB_SHA`; local revisions are `null` unless supplied. Milliseconds describe simulation time, not device input latency.
+
 ## Publishing
 
 Set **Settings → Pages → Source** to **GitHub Actions**. The [deployment workflow](./.github/workflows/deploy.yml) runs on pushes to `main` or can be started manually from the Actions tab. Each platformer suite runs in its own independent job, so a failure in one does not prevent the other from running. Deployment requires both to pass, runs the other two games' suites, then stages the menu and the files the games serve into `_site/` and deploys a single Pages artifact. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.
