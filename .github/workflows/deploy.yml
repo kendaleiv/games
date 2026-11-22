@@ -1,17 +1,17 @@
-name: Deploy to GitHub Pages
+name: Build, test, and deploy
 
 on:
   push:
+    branches: ["main"]
+  pull_request:
     branches: ["main"]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
@@ -71,11 +71,9 @@ jobs:
           path: ${{ runner.temp }}/difficulty/pandas-hideout.json
           if-no-files-found: error
 
-  deploy:
+  build:
+    name: Build and test static site
     needs: [test-porcupine-spikey, test-pandas-hideout]
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -108,9 +106,6 @@ jobs:
           path: ${{ runner.temp }}/difficulty/*.json
           if-no-files-found: error
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
       - name: Prepare static site
         run: |
           install -Dm644 index.html _site/index.html
@@ -123,6 +118,20 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
         id: deployment
