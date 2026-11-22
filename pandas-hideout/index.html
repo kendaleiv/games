@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Help a panda or skunk reach a bamboo hideout in a rainforest platforming adventure.">
+<meta name="description" content="Help a panda, skunk, or pig reach a bamboo hideout in a rainforest platforming adventure.">
 <title>Panda's Hideout</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,10 +45,11 @@
   var ctx = canvas.getContext("2d");
   var keys = {}, pointer = null, jumpRequested = false;
   var state = "menu", selectedCharacter = "panda", characterCursor = 0;
-  var characterOptions = ["panda", "skunk"];
+  var characterOptions = ["panda", "skunk", "pig"];
   var characterButtons = [
-    { x: 270, y: 155, w: 120, h: 85, label: "Panda", character: "panda" },
-    { x: 410, y: 155, w: 120, h: 85, label: "Skunk", character: "skunk" }
+    { x: 200, y: 155, w: 120, h: 85, label: "Panda", character: "panda" },
+    { x: 340, y: 155, w: 120, h: 85, label: "Skunk", character: "skunk" },
+    { x: 480, y: 155, w: 120, h: 85, label: "Pig", character: "pig" }
   ];
   var startButton = { x: 250, y: 265, w: 300, h: 55 };
   var backButton = { x: 10, y: 10, w: 90, h: 32 };
@@ -179,7 +180,7 @@
     }
     if (state === "menu") {
       if (keys["ArrowUp"] || keys["KeyW"] || keys["ArrowLeft"] || keys["KeyA"]) {
-        characterCursor = (characterCursor + 1) % characterOptions.length;
+        characterCursor = (characterCursor + characterOptions.length - 1) % characterOptions.length;
       }
       if (keys["ArrowDown"] || keys["KeyS"] || keys["ArrowRight"] || keys["KeyD"]) {
         characterCursor = (characterCursor + 1) % characterOptions.length;
@@ -346,6 +347,17 @@
       ellipse(px + 29, py + 15, 2, 2, "#fff");
       ellipse(px + 29, py + 15, 1, 1, "#111");
       ellipse(px + 34, py + 21, 2, 2, "#111");
+    } else if (character === "pig") {
+      ctx.strokeStyle = "#e99cae"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px + 1, py + 21, 4, 0, Math.PI * 1.7); ctx.stroke();
+      ellipse(px + 15, py + 23, 15, 11, "#f3b1bf");
+      ellipse(px + 25, py + 14, 10, 10, "#f7c1cc");
+      ellipse(px + 20, py + 5, 4, 7, "#e99cae", -0.4);
+      ellipse(px + 29, py + 5, 4, 6, "#e99cae", 0.3);
+      ellipse(px + 28, py + 13, 2, 2, "#202729");
+      ellipse(px + 33, py + 20, 6, 5, "#e99cae");
+      ellipse(px + 31, py + 20, 1, 2, "#9b5368");
+      ellipse(px + 35, py + 20, 1, 2, "#9b5368");
     } else {
       ellipse(px + 15, py + 22, 14, 12, "#f4f0da");
       ellipse(px + 5, py + 21, 5, 10, "#202729");

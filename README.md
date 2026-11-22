@@ -5,7 +5,7 @@ Four browser games in one place. Choose a game from the [GitHub Pages menu](http
 - [Gobble Gobble Turkey](./gobble-gobble-turkey/) — Help a speedy pig jump over holes and beat the turkeys to the golden key.
 - [Grass Adventure](./grass-adventure/) — Explore a top-down pixel-art world inspired by a child's dictated adventure.
 - [Porcupine Spikey — Cave Adventure](./porcupine-spikey/) — Choose a character and platform through underground caves.
-- [Panda's Hideout](./pandas-hideout/) — Play as a panda or skunk in one introductory bamboo rainforest level with platforms and lasers.
+- [Panda's Hideout](./pandas-hideout/) — Play as a panda, skunk, or pig in one introductory bamboo rainforest level with platforms and lasers.
 
 Each folder preserves the original game's files, including its README, license, and any tests. The nested workflows are kept for reference; only the root workflow runs here.
 
