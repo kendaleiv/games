@@ -110,22 +110,44 @@ test("60 Hz and 144 Hz displays advance equally; background pauses do not fast-f
   assert.ok(positions[0] >= 257 && positions[0] <= 260);
 });
 
-test("only panda and skunk are selectable; panda is the default and selection persists on retry", () => {
+test("panda is the default and keyboard selection cycles through panda, skunk, and pig in both directions", () => {
   const game = createGame();
   assert.equal(game.state().selectedCharacter, "panda");
-  game.press("ArrowDown"); game.step();
-  assert.equal(game.state().selectedCharacter, "skunk");
-  game.press("ArrowDown"); game.step();
-  assert.equal(game.state().selectedCharacter, "panda");
-  game.tap(470, 190); game.step();
-  assert.equal(game.state().selectedCharacter, "skunk");
-  game.tap(400, 285); game.step();
-  assert.equal(game.state().state, "playing");
-  game.clearHazards(); game.world.platforms.length = 0;
-  game.until(() => game.state().state === "dead");
-  game.step(91); game.tap(400, 200); game.step();
-  assert.equal(game.state().state, "playing");
-  assert.equal(game.state().selectedCharacter, "skunk");
+  for (const key of ["ArrowDown", "ArrowRight", "KeyS", "KeyD"]) {
+    for (const character of ["skunk", "pig", "panda"]) {
+      game.press(key); game.step();
+      assert.equal(game.state().selectedCharacter, character);
+    }
+  }
+  for (const key of ["ArrowUp", "ArrowLeft", "KeyW", "KeyA"]) {
+    for (const character of ["pig", "skunk", "panda"]) {
+      game.press(key); game.step();
+      assert.equal(game.state().selectedCharacter, character);
+    }
+  }
+  game.tick(17);
+  assert.ok(game.drawnText.includes("Pig"));
+});
+
+test("all three character cards support click and tap, and selection persists on retry and menu return", () => {
+  for (const input of ["click", "tap"]) {
+    for (const [character, x] of [["panda", 260], ["skunk", 400], ["pig", 540]]) {
+      const game = createGame();
+      game[input](x, 190); game.step();
+      assert.equal(game.state().selectedCharacter, character);
+      game[input](400, 285); game.step();
+      assert.equal(game.state().state, "playing");
+      game.tick(17);
+      game.clearHazards(); game.world.platforms.length = 0;
+      game.until(() => game.state().state === "dead");
+      game.step(91); game[input](400, 200); game.step();
+      assert.equal(game.state().state, "playing");
+      assert.equal(game.state().selectedCharacter, character);
+      game.press("Escape"); game.step();
+      assert.equal(game.state().state, "menu");
+      assert.equal(game.state().selectedCharacter, character);
+    }
+  }
 });
 
 test("keyboard, click, and tap start the single level and jump", () => {
@@ -223,16 +245,17 @@ test("returning to the menu and replaying rebuilds the same single level", () =>
   assert.ok(!game.drawnText.some(text => /Level [2-5]/.test(text)));
 });
 
-test("both characters can complete the entire level with timed jumps, platforms, and live lasers", () => {
+test("all three characters can complete the entire level with timed jumps, platforms, and live lasers", () => {
   const jumps = [
     923, 1472, 1622, 1730, 1874, 2072, 2264, 2672, 2741, 2873, 2984, 3173,
     3365, 3791, 3860, 4061, 4220, 4328, 4412, 4673, 4883, 5273,
     5363, 5522, 5630, 5873, 6065, 6242
   ];
   const outcomes = [];
-  for (const character of ["panda", "skunk"]) {
+  for (const [index, character] of ["panda", "skunk", "pig"].entries()) {
     const game = createGame();
-    if (character === "skunk") { game.press("ArrowDown"); game.step(); }
+    for (let i = 0; i < index; i++) { game.press("ArrowDown"); game.step(); }
+    assert.equal(game.state().selectedCharacter, character);
     game.start();
     let jumpIndex = 0, usedPlatforms = false, sawLasers = false;
     for (let frame = 0; frame < 2400 && game.state().state === "playing"; frame++) {
@@ -254,4 +277,5 @@ test("both characters can complete the entire level with timed jumps, platforms,
     outcomes.push([game.state().playerX, game.state().score]);
   }
   assert.deepEqual(outcomes[0], outcomes[1]);
+  assert.deepEqual(outcomes[0], outcomes[2]);
 });
