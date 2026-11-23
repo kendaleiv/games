@@ -7,7 +7,7 @@ Four browser games in one place. Choose a game from the [GitHub Pages menu](http
 - [Porcupine Spikey — Cave Adventure](./porcupine-spikey/) — Choose a character and platform through underground caves.
 - [Panda's Hideout](./pandas-hideout/) — Play as a panda, skunk, or pig in one introductory bamboo rainforest level with platforms and lasers.
 
-Each folder preserves the original game's files, including its README, license, and any tests. The nested workflows are kept for reference; only the root workflow runs here.
+Each folder preserves the original game's files, including its README, license, and any tests. The nested workflows are kept for reference; only the root workflows run here.
 
 ## Play and test locally
 
@@ -42,4 +42,4 @@ Use the corresponding game/test path for another suite. Without `GAME_TEST_REPOR
 
 ## Publishing
 
-Set **Settings → Pages → Source** to **GitHub Actions**. The [build, test, and deployment workflow](./.github/workflows/deploy.yml) runs on pull requests targeting `main`, pushes to `main`, or manually from the Actions tab. A single job runs all four games' independent test suites and stages the menu and the files the games serve into `_site/`. The remaining suites still run if another fails, but site preparation and deployment require all tests to pass. Pull requests only validate the build and tests, without uploading artifacts or publishing to Pages; pushes and manual runs also build and test, then upload the required Pages artifact and deploy it in the same job. The job uses the `pull-request` environment for pull requests and the `github-pages` environment for pushes and manual runs. Pages upload and deployment steps are skipped on pull requests, and fork pull requests receive read-only repository permissions. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.
+Set **Settings → Pages → Source** to **GitHub Actions**. The [CI workflow](./.github/workflows/ci.yml) runs on pull requests targeting `main` in one job that tests all four games and stages the static site into `_site/`. It has read-only repository permissions, no environment, no artifact uploads, and creates no deployment records. The [deployment workflow](./.github/workflows/deploy.yml) runs on pushes to `main` or manually from the Actions tab. Its single job also tests all four games and stages the site, then uploads the required Pages artifact and deploys using the `github-pages` environment. In both workflows, the remaining independent suites still run if another fails, but site preparation and deployment require all tests to pass. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.

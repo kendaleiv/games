@@ -3,15 +3,13 @@ name: Build, test, and deploy
 on:
   push:
     branches: ["main"]
-  pull_request:
-    branches: ["main"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -22,7 +20,7 @@ jobs:
       pages: write
       id-token: write
     environment:
-      name: ${{ github.event_name == 'pull_request' && 'pull-request' || 'github-pages' }}
+      name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
@@ -64,16 +62,13 @@ jobs:
           install -Dm644 -t _site/grass-adventure grass-adventure/{index.html,engine.js,game.js,style.css,LICENSE}
 
       - name: Upload artifact
-        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
       - name: Setup Pages
-        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
-        if: github.event_name != 'pull_request'
         id: deployment
         uses: actions/deploy-pages@v4
