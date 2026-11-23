@@ -15,8 +15,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  test-porcupine-spikey:
-    name: Test Porcupine Spikey
+  build:
+    name: Build, test, and deploy games
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: ${{ github.event_name == 'pull_request' && 'pull-request' || 'github-pages' }}
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,13 +36,13 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Test
+      - name: Test Porcupine Spikey
         working-directory: porcupine-spikey
         env:
           GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/porcupine-spikey.json
         run: node --test tests/game.test.cjs
 
-      - name: Upload difficulty report
+      - name: Upload Porcupine Spikey difficulty report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -43,27 +50,14 @@ jobs:
           path: ${{ runner.temp }}/difficulty/porcupine-spikey.json
           if-no-files-found: error
 
-  test-pandas-hideout:
-    name: Test Panda's Hideout
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Test
+      - name: Test Panda's Hideout
+        if: ${{ !cancelled() }}
         working-directory: pandas-hideout
         env:
           GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/pandas-hideout.json
         run: node --test tests/game.test.cjs
 
-      - name: Upload difficulty report
+      - name: Upload Panda's Hideout difficulty report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -71,28 +65,15 @@ jobs:
           path: ${{ runner.temp }}/difficulty/pandas-hideout.json
           if-no-files-found: error
 
-  build:
-    name: Build and test static site
-    needs: [test-porcupine-spikey, test-pandas-hideout]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Test Gobble Gobble Turkey
+        if: ${{ !cancelled() }}
         working-directory: gobble-gobble-turkey
         env:
           GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/gobble-gobble-turkey.json
         run: node --test tests/game.test.cjs
 
       - name: Test Grass Adventure
+        if: ${{ !cancelled() }}
         working-directory: grass-adventure
         env:
           GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/grass-adventure.json
@@ -103,7 +84,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: difficulty-race-and-adventure
-          path: ${{ runner.temp }}/difficulty/*.json
+          path: |
+            ${{ runner.temp }}/difficulty/gobble-gobble-turkey.json
+            ${{ runner.temp }}/difficulty/grass-adventure.json
           if-no-files-found: error
 
       - name: Prepare static site
@@ -119,20 +102,11 @@ jobs:
         with:
           path: _site
 
-  deploy:
-    if: github.event_name != 'pull_request'
-    needs: build
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
       - name: Setup Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
         id: deployment
         uses: actions/deploy-pages@v4
