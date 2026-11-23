@@ -64,6 +64,7 @@ jobs:
           install -Dm644 -t _site/grass-adventure grass-adventure/{index.html,engine.js,game.js,style.css,LICENSE}
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
