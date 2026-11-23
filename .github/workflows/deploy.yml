@@ -38,56 +38,22 @@ jobs:
 
       - name: Test Porcupine Spikey
         working-directory: porcupine-spikey
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/porcupine-spikey.json
         run: node --test tests/game.test.cjs
-
-      - name: Upload Porcupine Spikey difficulty report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: difficulty-porcupine-spikey
-          path: ${{ runner.temp }}/difficulty/porcupine-spikey.json
-          if-no-files-found: error
 
       - name: Test Panda's Hideout
         if: ${{ !cancelled() }}
         working-directory: pandas-hideout
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/pandas-hideout.json
         run: node --test tests/game.test.cjs
-
-      - name: Upload Panda's Hideout difficulty report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: difficulty-pandas-hideout
-          path: ${{ runner.temp }}/difficulty/pandas-hideout.json
-          if-no-files-found: error
 
       - name: Test Gobble Gobble Turkey
         if: ${{ !cancelled() }}
         working-directory: gobble-gobble-turkey
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/gobble-gobble-turkey.json
         run: node --test tests/game.test.cjs
 
       - name: Test Grass Adventure
         if: ${{ !cancelled() }}
         working-directory: grass-adventure
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/grass-adventure.json
         run: npm test
-
-      - name: Upload difficulty reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: difficulty-race-and-adventure
-          path: |
-            ${{ runner.temp }}/difficulty/gobble-gobble-turkey.json
-            ${{ runner.temp }}/difficulty/grass-adventure.json
-          if-no-files-found: error
 
       - name: Prepare static site
         run: |
