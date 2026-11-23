@@ -7,7 +7,7 @@ Four browser games in one place. Choose a game from the [GitHub Pages menu](http
 - [Porcupine Spikey — Cave Adventure](./porcupine-spikey/) — Choose a character and platform through underground caves.
 - [Panda's Hideout](./pandas-hideout/) — Play as a panda, skunk, or pig in one introductory bamboo rainforest level with platforms and lasers.
 
-Each folder preserves the original game's files, including its README, license, and any tests. The nested workflows are kept for reference; only the root workflow runs here.
+Each folder preserves the original game's files, including its README, license, and any tests. The nested workflows are kept for reference; only the root workflows run here.
 
 ## Play and test locally
 
@@ -29,7 +29,7 @@ Tests cover full input-driven wins with hazards intact, controls, collisions, pr
 
 Timing slack is **informational**, not a pass/fail difficulty target. Route sweeps vary one input at a time and record the contiguous successful range around its baseline; the isolated lightning test records its longest successful range. Slack is the time between the earliest and latest successful inputs, so a single successful frame has zero slack. Bounded sweeps can report lower bounds. These simulations do not replace human/device playtesting or establish subjective difficulty.
 
-CI uploads lightweight JSON artifacts named `difficulty-porcupine-spikey`, `difficulty-pandas-hideout`, and `difficulty-race-and-adventure`. Reports include revision/source hashes, route metadata, input locations, frames, milliseconds, and slack. Grass Adventure also reports duration and actual damage separately from healing. Reports are uploaded after test failures where possible; missing records or `null` windows indicate incomplete measurement. They are not committed or published with the games.
+CI runs the gameplay tests without generating or uploading difficulty reports. Optional local JSON reports include revision/source hashes, route metadata, input locations, frames, milliseconds, and slack. Grass Adventure also reports duration and actual damage separately from healing. Missing records or `null` windows indicate incomplete measurement. Reports are not committed or published with the games.
 
 To generate a local report:
 
@@ -38,8 +38,8 @@ export GAME_TEST_REVISION="$(git rev-parse HEAD)"
 GAME_TEST_REPORT="$PWD/.test-results/pandas-hideout.json" node --test pandas-hideout/tests/game.test.cjs
 ```
 
-Use the corresponding game/test path for another suite. Without `GAME_TEST_REPORT`, tests do not write files. CI uses `GITHUB_SHA`; local revisions are `null` unless supplied. Milliseconds describe simulation time, not device input latency.
+Use the corresponding game/test path for another suite. Without `GAME_TEST_REPORT`, tests do not write files. Local revisions are `null` unless supplied through `GAME_TEST_REVISION`. Milliseconds describe simulation time, not device input latency.
 
 ## Publishing
 
-Set **Settings → Pages → Source** to **GitHub Actions**. The [deployment workflow](./.github/workflows/deploy.yml) runs on pushes to `main` or can be started manually from the Actions tab. Each platformer suite runs in its own independent job, so a failure in one does not prevent the other from running. Deployment requires both to pass, runs the other two games' suites, then stages the menu and the files the games serve into `_site/` and deploys a single Pages artifact. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.
+Set **Settings → Pages → Source** to **GitHub Actions**. The [CI workflow](./.github/workflows/ci.yml) runs on pull requests targeting `main` in one job that tests all four games and stages the static site into `_site/`. It has read-only repository permissions, no environment, no artifact uploads, and creates no deployment records. The [deployment workflow](./.github/workflows/deploy.yml) runs on pushes to `main` or manually from the Actions tab. Its single job also tests all four games and stages the site, then uploads the required Pages artifact and deploys using the `github-pages` environment. In both workflows, the remaining independent suites still run if another fails, but site preparation and deployment require all tests to pass. Tests, package metadata, and nested workflows are not part of the published site. The menu uses relative links so it works under `/games/`.

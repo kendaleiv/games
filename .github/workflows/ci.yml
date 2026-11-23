@@ -1,0 +1,54 @@
+name: Build and test
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test games
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Porcupine Spikey
+        working-directory: porcupine-spikey
+        run: node --test tests/game.test.cjs
+
+      - name: Test Panda's Hideout
+        if: ${{ !cancelled() }}
+        working-directory: pandas-hideout
+        run: node --test tests/game.test.cjs
+
+      - name: Test Gobble Gobble Turkey
+        if: ${{ !cancelled() }}
+        working-directory: gobble-gobble-turkey
+        run: node --test tests/game.test.cjs
+
+      - name: Test Grass Adventure
+        if: ${{ !cancelled() }}
+        working-directory: grass-adventure
+        run: npm test
+
+      - name: Prepare static site
+        run: |
+          install -Dm644 index.html _site/index.html
+          install -Dm644 gobble-gobble-turkey/index.html _site/gobble-gobble-turkey/index.html
+          install -Dm644 porcupine-spikey/index.html _site/porcupine-spikey/index.html
+          install -Dm644 -t _site/pandas-hideout pandas-hideout/{index.html,LICENSE}
+          install -Dm644 -t _site/grass-adventure grass-adventure/{index.html,engine.js,game.js,style.css,LICENSE}

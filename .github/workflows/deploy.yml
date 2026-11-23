@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Build, test, and deploy
 
 on:
   push:
@@ -7,72 +7,18 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  test-porcupine-spikey:
-    name: Test Porcupine Spikey
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Test
-        working-directory: porcupine-spikey
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/porcupine-spikey.json
-        run: node --test tests/game.test.cjs
-
-      - name: Upload difficulty report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: difficulty-porcupine-spikey
-          path: ${{ runner.temp }}/difficulty/porcupine-spikey.json
-          if-no-files-found: error
-
-  test-pandas-hideout:
-    name: Test Panda's Hideout
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Test
-        working-directory: pandas-hideout
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/pandas-hideout.json
-        run: node --test tests/game.test.cjs
-
-      - name: Upload difficulty report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: difficulty-pandas-hideout
-          path: ${{ runner.temp }}/difficulty/pandas-hideout.json
-          if-no-files-found: error
-
-  deploy:
-    needs: [test-porcupine-spikey, test-pandas-hideout]
+  build:
+    name: Build, test, and deploy games
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -88,28 +34,24 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Test Porcupine Spikey
+        working-directory: porcupine-spikey
+        run: node --test tests/game.test.cjs
+
+      - name: Test Panda's Hideout
+        if: ${{ !cancelled() }}
+        working-directory: pandas-hideout
+        run: node --test tests/game.test.cjs
+
       - name: Test Gobble Gobble Turkey
+        if: ${{ !cancelled() }}
         working-directory: gobble-gobble-turkey
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/gobble-gobble-turkey.json
         run: node --test tests/game.test.cjs
 
       - name: Test Grass Adventure
+        if: ${{ !cancelled() }}
         working-directory: grass-adventure
-        env:
-          GAME_TEST_REPORT: ${{ runner.temp }}/difficulty/grass-adventure.json
         run: npm test
-
-      - name: Upload difficulty reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: difficulty-race-and-adventure
-          path: ${{ runner.temp }}/difficulty/*.json
-          if-no-files-found: error
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
 
       - name: Prepare static site
         run: |
@@ -123,6 +65,9 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
       - name: Deploy to GitHub Pages
         id: deployment
