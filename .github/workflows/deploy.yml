@@ -53,6 +53,10 @@ jobs:
         working-directory: grass-adventure
         run: npm test
 
+      - name: Test Pages artifact discovery
+        if: ${{ !cancelled() }}
+        run: node --test .github/actions/wait-for-pages-artifact/wait.test.cjs
+
       - name: Prepare static site
         run: |
           install -Dm644 index.html _site/index.html
@@ -62,13 +66,23 @@ jobs:
           install -Dm644 -t _site/grass-adventure grass-adventure/{index.html,engine.js,game.js,style.css,LICENSE}
 
       - name: Upload artifact
+        id: upload
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Wait for Pages artifact
+        uses: ./.github/actions/wait-for-pages-artifact
+        with:
+          artifact-name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact-id: ${{ steps.upload.outputs.artifact_id }}
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}

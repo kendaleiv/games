@@ -45,6 +45,10 @@ jobs:
         working-directory: grass-adventure
         run: npm test
 
+      - name: Test Pages artifact discovery
+        if: ${{ !cancelled() }}
+        run: node --test .github/actions/wait-for-pages-artifact/wait.test.cjs
+
       - name: Prepare static site
         run: |
           install -Dm644 index.html _site/index.html
